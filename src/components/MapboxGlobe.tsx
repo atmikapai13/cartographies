@@ -3,6 +3,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import projects from "../projects.json";
 import placeData from '../places.json';
+import { asset } from '../utils/assetPath';
 
 // Project cities data
 const project_cities = [
@@ -69,7 +70,7 @@ const musicCities = musicCityNames
   .map(cityName => project_cities.find(city => city.name === cityName))
   .filter((city): city is typeof project_cities[number] => Boolean(city));
 
-mapboxgl.accessToken = "pk.eyJ1IjoiYXRtaWthcGFpMTMiLCJhIjoiY21idHR4eTJpMDdhMjJsb20zNmZheTZ6ayJ9.d_bQSBzesyiCUMA-YHRoIA";
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 interface MapboxGlobeProps {
   selectedCity: string | null;
@@ -299,7 +300,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
       popupContent += `<div class="city-description">`;
       popupContent += `<h3 style='margin-bottom: 3px; text-align:center;color:#007bff;'>${cityName}</h3>`;
       if (cityData.image) {
-        popupContent += `<img src='${cityData.image}' alt='${cityName}' style='display:block;margin:0 auto 10px auto;max-width:320px; width:100%;height:auto;border-radius:10px;' onerror='console.error(\"Failed to load image:\", this.src)' onload='console.log(\"Image loaded successfully:\", this.src)' loading='lazy' />`;
+        popupContent += `<img src='${asset(cityData.image)}' alt='${cityName}' style='display:block;margin:0 auto 10px auto;max-width:320px; width:100%;height:auto;border-radius:10px;' onerror='console.error(\"Failed to load image:\", this.src)' onload='console.log(\"Image loaded successfully:\", this.src)' loading='lazy' />`;
       }
       popupContent += `<div style='font-size:0.7rem;color:#bdbdbd;margin-bottom:3px;text-align:center; font-style:italic;'><em>${cityData.date || ''}</em></div>`;
       popupContent += `<div style='font-size:0.5rem;color:#e0e0e0;text-align:center; font-style:italic;line-height:1.2;'>${cityData.place_description || ''}</div>`;
@@ -932,7 +933,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
         >
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
             <img 
-              src="/assets/map-cities.png" 
+              src={asset('assets/map-cities.png')}
               alt="Cities" 
               onClick={handleCityDropdownToggle}
               style={{
@@ -952,7 +953,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
             
             {/* Tour Icon */}
             <img 
-              src="/assets/map-tour.png" 
+              src={asset('assets/map-tour.png')}
               alt="Tour" 
               onClick={handleTourToggle}
               style={{
@@ -972,7 +973,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
 
             {/* Music Icon */}
             <img 
-              src="/assets/map-music.png" 
+              src={asset('assets/map-music.png')}
               alt="Music" 
               onClick={handleMusicToggle}
               style={{
@@ -1128,7 +1129,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
           zIndex: 1000
         }}>
           <img 
-            src="/assets/map-3d.png" 
+            src={asset('assets/map-3d.png')}
             alt="3D" 
             onClick={handleCameraToggle}
             style={{
@@ -1407,7 +1408,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
               <div style={{ textAlign: "center" }}>
                 {cityData.image && (
                   <img 
-                    src={cityData.image} 
+                    src={asset(cityData.image)}
                     alt={customPopupData.cityName} 
                     style={{
                       display: "block",

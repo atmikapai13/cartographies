@@ -1,4 +1,5 @@
 import React from 'react';
+import { asset } from '../utils/assetPath';
 
 interface ProjectCardProps {
   title: string;
@@ -30,10 +31,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ title, image, description, li
           {image && (
             link ? (
               <a href={link} target="_blank" rel="noopener noreferrer" className="project-image-link">
-                <img src={image} alt={title} className="project-card-image-large" />
+                <img src={asset(image)} alt={title} className="project-card-image-large" />
               </a>
             ) : (
-              <img src={image} alt={title} className="project-card-image-large" />
+              <img src={asset(image)} alt={title} className="project-card-image-large" />
             )
           )}
           {role && (

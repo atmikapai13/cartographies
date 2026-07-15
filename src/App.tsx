@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import ReactGA from 'react-ga4';
 import MapboxGlobe from './components/MapboxGlobe';
 import Sidebar from './components/Sidebar';
+import { asset } from './utils/assetPath';
 import './App.css';
 
 function App() {
@@ -171,7 +172,7 @@ function App() {
                   <div className="disclaimer-controls" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px', overflowY: 'auto', maxHeight: '250px' }}>
                     {/* Map Cities Control */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(165, 214, 250, 0.2)' }}>
-                      <img src="/assets/map-cities.png" alt="Cities" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
+                      <img src={asset('assets/map-cities.png')} alt="Cities" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
                       <div style={{ textAlign: 'center', flex: 1 }}>
                         <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#a5d6fa', marginBottom: '4px' }}>Cities Dropdown</div>
                         <div style={{ fontSize: '1rem', lineHeight: '1.4' }}>Click to see a list of cities and jump directly to any location</div>
@@ -180,7 +181,7 @@ function App() {
 
                     {/* Map Tour Control */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(165, 214, 250, 0.2)' }}>
-                      <img src="/assets/map-tour.png" alt="Tour" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
+                      <img src={asset('assets/map-tour.png')} alt="Tour" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
                       <div style={{ textAlign: 'center', flex: 1 }}>
                         <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#a5d6fa', marginBottom: '4px' }}>Guided Tour</div>
                         <div style={{ fontSize: '1rem', lineHeight: '1.4' }}>Take a guided tour of my career thus far</div>
@@ -189,7 +190,7 @@ function App() {
 
                     {/* Map Camera Control */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(165, 214, 250, 0.2)' }}>
-                      <img src="/assets/map-3d.png" alt="3D" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
+                      <img src={asset('assets/map-3d.png')} alt="3D" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
                       <div style={{ textAlign: 'center', flex: 1 }}>
                         <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#a5d6fa', marginBottom: '4px' }}>3D Toggle</div>
                         <div style={{ fontSize: '1rem', lineHeight: '1.4' }}>Switch between 2D and 3D view</div>
@@ -198,7 +199,7 @@ function App() {
 
                     {/* Map Music Control */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(165, 214, 250, 0.2)' }}>
-                      <img src="/assets/map-music.png" alt="Music" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
+                      <img src={asset('assets/map-music.png')} alt="Music" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#a5d6fa', marginBottom: '4px' }}>My Curated Playlists</div>
                           <div style={{ fontSize: '1rem', lineHeight: '1.4' }}>Explore curated playlists for each city!</div>
@@ -232,7 +233,7 @@ function App() {
                         
                         // Then trigger the guided tour by simulating a click on map-tour.png
                         setTimeout(() => {
-                          const tourButton = document.querySelector('img[src="/assets/map-tour.png"]') as HTMLImageElement;
+                          const tourButton = document.querySelector(`img[src="${asset('assets/map-tour.png')}"]`) as HTMLImageElement;
                           if (tourButton) {
                             tourButton.click();
                           }
@@ -264,7 +265,7 @@ function App() {
                         e.currentTarget.style.boxShadow = '0 4px 15px rgba(165, 214, 250, 0.3)';
                       }}
                     >
-                      <img src="/assets/map-tour.png" alt="Guided Tour" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
+                      <img src={asset('assets/map-tour.png')} alt="Guided Tour" style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: '1rem', fontWeight: '600', color: '#a5d6fa' }}>Start Guided Tour</div>
                       </div>
@@ -422,7 +423,7 @@ function App() {
           <a href="mailto:atmikapai13@gmail.com" style={{fontSize: '1em', color: '#f5f5e6', textDecoration: 'none', display: 'flex', alignItems: 'center', marginTop: '10px'}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f5f5e6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle' }}><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
           </a>
-          <a href="/assets/AtmikaPai_Resume.pdf" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', marginTop: '10px'}} title="View Resume">
+          <a href={asset('assets/AtmikaPai_Resume.pdf')} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', marginTop: '10px'}} title="View Resume">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f5f5e6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><polyline points="8,6 16,6"/><polyline points="8,10 16,10"/><polyline points="8,14 12,14"/></svg>
           </a>
         </div>

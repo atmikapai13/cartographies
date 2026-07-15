@@ -1,4 +1,5 @@
 import React from 'react';
+import { asset } from '../utils/assetPath';
 
 const Footer: React.FC = () => (
   <footer className="footer" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1px 0' }}>
@@ -20,7 +21,7 @@ const Footer: React.FC = () => (
       <a href="mailto:atmikapai13@gmail.com" style={{fontSize: '1em', color: '#f5f5e6', textDecoration: 'none', display: 'flex', alignItems: 'center', marginTop: '10px'}}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f5f5e6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle' }}><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
       </a>
-      <a href="/assets/AtmikaPai_Resume.pdf" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', marginTop: '10px'}} title="View Resume">
+      <a href={asset('assets/AtmikaPai_Resume.pdf')} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', marginTop: '10px'}} title="View Resume">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f5f5e6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><polyline points="8,6 16,6"/><polyline points="8,10 16,10"/><polyline points="8,14 12,14"/></svg>
       </a>
     </div>
