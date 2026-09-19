@@ -4,6 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import projects from "../projects.json";
 import placeData from '../places.json';
 import { asset } from '../utils/assetPath';
+import MapNavBar from './MapNavBar';
 
 // Project cities data
 const project_cities = [
@@ -47,7 +48,7 @@ const zoomGatedCities = ["Walnut Creek", "New Jersey", "Oakland", "Berkeley", "W
 ];
 
 // Guided tour cities in order (by city name)
-const tourCityNames = ["New York", "Central Park", "Oakland", "San Francisco", "Berkeley", "Mumbai"];
+const tourCityNames = ["Berkeley", "Oakland", "New York"];
 
 // Get tour cities from project_cities array
 const tourCities = tourCityNames
@@ -72,6 +73,22 @@ const musicCities = musicCityNames
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
+interface SpotifyEmbedController {
+  loadUri: (uri: string) => void;
+}
+interface SpotifyIFrameAPI {
+  createController: (
+    element: HTMLElement,
+    options: { width?: string; height?: string; uri: string },
+    callback: (controller: SpotifyEmbedController) => void
+  ) => void;
+}
+declare global {
+  interface Window {
+    onSpotifyIframeApiReady?: (IFrameAPI: SpotifyIFrameAPI) => void;
+  }
+}
+
 interface MapboxGlobeProps {
   selectedCity: string | null;
   onCitySelect?: (city: string | null) => void;
@@ -81,7 +98,6 @@ interface MapboxGlobeProps {
 export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const activePopup = useRef<mapboxgl.Popup | null>(null);
   const rotationEnabled = useRef(true);
   // const popupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // const moveEndListenerRef = useRef<(() => void) | null>(null);
@@ -95,6 +111,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
   const [showTour, setShowTour] = useState(false);
   const [currentTourIndex, setCurrentTourIndex] = useState(0);
   const [showMusicDropdown, setShowMusicDropdown] = useState(false);
+  const [showIconMenu, setShowIconMenu] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 600);
   const [customPopupData, setCustomPopupData] = useState<{
@@ -102,6 +119,43 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
     lngLat: [number, number];
     isTour: boolean;
   } | null>(null);
+  const [showPlaylistEmbed, setShowPlaylistEmbed] = useState(false);
+  const spotifyApiRef = useRef<SpotifyIFrameAPI | null>(null);
+  const spotifyEmbedContainerRef = useRef<HTMLDivElement>(null);
+  const spotifyControllerRef = useRef<SpotifyEmbedController | null>(null);
+
+  // Grab the Spotify IFrame API instance once its script finishes loading
+  useEffect(() => {
+    window.onSpotifyIframeApiReady = (IFrameAPI) => {
+      spotifyApiRef.current = IFrameAPI;
+    };
+  }, []);
+
+  // Create (or reuse) the Spotify embed controller once the user reveals it
+  useEffect(() => {
+    if (!showPlaylistEmbed || !customPopupData || !spotifyEmbedContainerRef.current) return;
+
+    const cityData = (placeData as any[]).find(
+      (entry) => entry.city.trim().toLowerCase() === customPopupData.cityName.trim().toLowerCase()
+    );
+    const playlistId = cityData?.playlist?.match(/playlist\/([a-zA-Z0-9]+)/)?.[1];
+    if (!playlistId) return;
+    const uri = `spotify:playlist:${playlistId}`;
+
+    if (spotifyControllerRef.current) {
+      spotifyControllerRef.current.loadUri(uri);
+      return;
+    }
+
+    if (!spotifyApiRef.current) return;
+    spotifyApiRef.current.createController(
+      spotifyEmbedContainerRef.current,
+      { width: '100%', height: '160', uri },
+      (controller) => {
+        spotifyControllerRef.current = controller;
+      }
+    );
+  }, [showPlaylistEmbed, customPopupData]);
 
 
   const handlePitchChange = (newPitch: number) => {
@@ -111,26 +165,18 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
     }
   };
 
+  const handleIconMenuToggle = () => {
+    setShowIconMenu(!showIconMenu);
+  };
+
   const handleCityDropdownToggle = () => {
-    // Add click animation
-    // setIsIconClicked(true);
-    // setTimeout(() => {
-    //   setIsIconClicked(false);
-    // }, 150);
-    
-    console.log('Dropdown toggle clicked, current state:', showCityDropdown);
     setShowCityDropdown(!showCityDropdown);
-    console.log('Dropdown state set to:', !showCityDropdown);
+    setShowMusicDropdown(false);
+    setShowPitchControl(false);
   };
 
   const handleCitySelect = (city: typeof project_cities[number]) => {
     if (mapRef.current) {
-      // Step 1: Close any existing popups
-    if (activePopup.current) {
-      activePopup.current.remove();
-      activePopup.current = null;
-    }
-
       rotationEnabled.current = false;
       if (onCitySelect) {
         onCitySelect(city.name);
@@ -159,13 +205,17 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
       });
     }
     setShowCityDropdown(false);
+    setShowIconMenu(false);
   };
 
   const handleCameraToggle = () => {
     setShowPitchControl(!showPitchControl);
+    setShowCityDropdown(false);
+    setShowMusicDropdown(false);
   };
 
   const handleTourToggle = () => {
+    setShowIconMenu(false);
     setShowTour(!showTour);
     if (!showTour) {
       setCurrentTourIndex(0);
@@ -173,27 +223,19 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
       startTourCity(0);
     } else {
       // End tour - close any popups and enable rotation
-      if (activePopup.current) {
-        activePopup.current.remove();
-        activePopup.current = null;
-      }
+      closeCustomPopup();
       rotationEnabled.current = true;
     }
   };
 
   const handleMusicToggle = () => {
-    console.log('Music dropdown toggle clicked, current state:', showMusicDropdown);
     setShowMusicDropdown(!showMusicDropdown);
-    console.log('Music dropdown state set to:', !showMusicDropdown);
+    setShowCityDropdown(false);
+    setShowPitchControl(false);
   };
 
   const handleMusicCitySelect = (city: typeof project_cities[number]) => {
     if (mapRef.current) {
-      // Close any existing popups
-      if (activePopup.current) {
-        activePopup.current.remove();
-        activePopup.current = null;
-      }
 
       rotationEnabled.current = false;
       if (onCitySelect) {
@@ -224,19 +266,14 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
 
       // Close the music dropdown
       setShowMusicDropdown(false);
+      setShowIconMenu(false);
     }
   };
 
   const startTourCity = (index: number) => {
     if (mapRef.current && tourCities[index]) {
       const city = tourCities[index];
-      
-      // Close any existing popups
-      if (activePopup.current) {
-        activePopup.current.remove();
-        activePopup.current = null;
-      }
-      
+
     rotationEnabled.current = false;
       if (onCitySelect) {
         onCitySelect(city.name);
@@ -253,7 +290,7 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
       // Fly to the city with higher zoom for 3D view
       mapRef.current.flyTo({
         center: [city.longitude, city.latitude],
-        zoom: 16,
+        zoom: 10,
         pitch: 60,
         speed: 1.5,
         curve: 1.2,
@@ -283,149 +320,11 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
 
     if (!mapRef.current) return;
 
-    if (activePopup.current) {
-      activePopup.current.remove();
-      activePopup.current = null;
-    }
-
-    // Find city info (place_description, date, playlist)
-    const cityData = (placeData as any[]).find(
-      (entry) => entry.city.trim().toLowerCase() === cityName.trim().toLowerCase()
-    );
-
-    let popupContent = `<div class="city-popup" style="text-align:center; max-height:250px; overflow:auto; scrollbar-width: none; -ms-overflow-style: none;">`;
-    if (!cityData) {
-      popupContent += ``;
-    } else {
-      popupContent += `<div class="city-description">`;
-      popupContent += `<h3 style='margin-bottom: 3px; text-align:center;color:#007bff;'>${cityName}</h3>`;
-      if (cityData.image) {
-        popupContent += `<img src='${asset(cityData.image)}' alt='${cityName}' style='display:block;margin:0 auto 10px auto;max-width:320px; width:100%;height:auto;border-radius:10px;' onerror='console.error(\"Failed to load image:\", this.src)' onload='console.log(\"Image loaded successfully:\", this.src)' loading='lazy' />`;
-      }
-      popupContent += `<div style='font-size:0.7rem;color:#bdbdbd;margin-bottom:3px;text-align:center; font-style:italic;'><em>${cityData.date || ''}</em></div>`;
-      popupContent += `<div style='font-size:0.5rem;color:#e0e0e0;text-align:center; font-style:italic;line-height:1.2;'>${cityData.place_description || ''}</div>`;
-      if (cityData.playlist) {
-        // Check if there's an embed URL or if we can extract playlist ID for embedding
-        const hasEmbedUrl = cityData.playlist_embed;
-        const playlistId = cityData.playlist.match(/playlist\/([a-zA-Z0-9]+)/)?.[1];
-        
-        if (hasEmbedUrl || playlistId) {
-          // Create expandable playlist embed
-          const embedSrc = hasEmbedUrl || `https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`;
-          
-          popupContent += `<div class='popup-playlist' style='margin-top: 10px;'>
-            <button 
-              onclick="
-                const playlist = this.nextElementSibling;
-                if (playlist.style.display === 'none' || playlist.style.display === '') {
-                  playlist.style.display = 'block';
-                  this.innerHTML = 'my playlist ▲';
-                } else {
-                  playlist.style.display = 'none';
-                  this.innerHTML = 'my playlist ▼';
-                }
-              " 
-              style='font-size:0.6rem;color:#a5d6fa;margin-bottom:8px;text-align:center;font-weight:500;font-style:italic;background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background-color 0.2s;display:block;width:auto;margin:0 auto 8px auto;outline:none;box-shadow:none;'
-              onmouseover="this.style.backgroundColor='rgba(165, 214, 250, 0.1)'"
-              onmouseout="this.style.backgroundColor='transparent'"
-            >
-              my playlist ▼
-            </button>
-            <div style='display:none;margin-top:8px;'>
-              <iframe 
-                style="border-radius:12px" 
-                src="${embedSrc}" 
-                width="100%" 
-                height="152" 
-                frameBorder="0" 
-                allowfullscreen="" 
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
-                loading="lazy">
-              </iframe>
-            </div>
-          </div>`;
-        } else {
-          // Fallback to simple link if no embed is possible
-          popupContent += `<div class='popup-playlist' style=' font-size:0.5rem;'><a href='${cityData.playlist}' target='_blank' rel='noopener noreferrer'>my playlist</a></div>`;
-        }
-      }
-      popupContent += `</div>`;
-    }
-    popupContent += `</div>`;
-
-    // Pause rotation when popup opens
+    // Pause rotation and show the fixed top-left info panel
     rotationEnabled.current = false;
-    
-    // Adjust offset based on tour mode - closer to marker for tour
-    const offsetLngLat: [number, number] = isTour 
-      ? [lngLat[0] - 0.001, lngLat[1]] // Closer to the right for tour mode
-      : [lngLat[0] - 0.005, lngLat[1]]; // Regular offset for normal mode
-    
-    // Use larger width if there's an image or if there's a playlist embed
-    const hasPlaylistEmbed = cityData?.playlist_embed || (cityData?.playlist && cityData.playlist.match(/playlist\/([a-zA-Z0-9]+)/));
-    const popupWidth = cityData?.image || hasPlaylistEmbed ? '350px' : '250px';
-    
-    const popup = new mapboxgl.Popup({ maxWidth: popupWidth, anchor: 'right'})
-      .setLngLat(offsetLngLat)
-      .setHTML(popupContent)
-      .addTo(mapRef.current);
-
-    activePopup.current = popup;
-    
-    // Resume rotation when popup closes
-    popup.on('close', () => {
-      rotationEnabled.current = true;
-      if (onCitySelect) onCitySelect(null);
-      activePopup.current = null;
-      
-      // Clear selected marker
-      selectedMarkerRef.current = null;
-      
-      // Refresh the marker layer to reset colors
-      if (mapRef.current && mapRef.current.getLayer("city-markers")) {
-        mapRef.current.removeLayer("city-markers");
-        mapRef.current.addLayer({
-          id: "city-markers",
-          type: "circle",
-          source: "cities",
-          paint: {
-            "circle-radius": [
-              "case",
-              ["in", ["get", "name"], ["literal", zoomGatedCities]], 4,
-              5
-            ],
-            "circle-color": [
-              "case",
-              ["==", ["get", "name"], selectedMarkerRef.current], "#007bff",
-              ["case",
-                ["in", ["get", "name"], ["literal", zoomGatedCities]], "#ed462b",
-                "#ed462b"
-              ]
-            ],
-            "circle-stroke-width": [
-              "case",
-              ["==", ["get", "name"], selectedMarkerRef.current], 2,
-              1
-            ],
-            "circle-stroke-color": [
-              "case",
-              ["==", ["get", "name"], selectedMarkerRef.current], "#ffffff",
-              "#000000"
-            ],
-            "circle-opacity": 1.0,
-          },
-          filter: [
-            "any",
-            ["all", ...zoomGatedCities.map(city => ["!=", ["get", "name"], city])],
-            ...zoomGatedCities.map(city => [
-              "all",
-              ["==", ["get", "name"], city],
-              [">=", ["zoom"], 3]
-            ])
-          ]
-        });
-      }
-    });
+    setShowPlaylistEmbed(false);
+    spotifyControllerRef.current = null;
+    setCustomPopupData({ cityName, lngLat, isTour });
   };
 
   const closeCustomPopup = () => {
@@ -488,10 +387,6 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
 
     if (selectedCity === null) {
       // If city selection is cleared, remove the active popup but don't change the view.
-      if (activePopup.current) {
-        activePopup.current.remove();
-        activePopup.current = null;
-      }
       // Only clear custom popup on desktop
       if (!isMobile) {
         setCustomPopupData(null);
@@ -506,17 +401,19 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowCityDropdown(false);
         setShowMusicDropdown(false);
+        setShowPitchControl(false);
+        setShowIconMenu(false);
       }
     };
 
-    if (showCityDropdown || showMusicDropdown) {
+    if (showCityDropdown || showMusicDropdown || showPitchControl || showIconMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCityDropdown, showMusicDropdown]);
+  }, [showCityDropdown, showMusicDropdown, showPitchControl, showIconMenu]);
 
   // Handle window resize for mobile detection
   useEffect(() => {
@@ -542,32 +439,10 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
       pitch: pitch,
       minZoom: window.innerWidth <= 600 ? 0.30 : 1.4,
       attributionControl: false,
+      logoPosition: "bottom-right",
     });
     mapRef.current = map;
-    
-    // Add built-in Mapbox controls (desktop only)
-    if (window.innerWidth > 600) {
-      map.addControl(new mapboxgl.NavigationControl(), 'top-left');
-      
-      // Custom positioning for navigation control
-      setTimeout(() => {
-        const navControl = document.querySelector('.mapboxgl-ctrl-group');
-        if (navControl) {
-          // Use setAttribute to force CSS with !important
-          navControl.setAttribute('style', `
-            position: absolute !important;
-            top: 231px !important;
-            left: 12px !important;
-            right: auto !important;
-            bottom: auto !important;
-          `);
-          console.log('Navigation control positioned at top-left');
-        }
-      }, 100);
-    }
-    // map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
-    // map.addControl(new mapboxgl.GeolocateControl(), 'top-right');
-    
+
 
 
     map.on("style.load", () => {
@@ -920,463 +795,219 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
         style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0 }}
       />
 
-      {/* Cities Image with Dropdown - Hidden on mobile */}
-      {!isMobile && (
-        <div 
-          ref={dropdownRef}
-          style={{
-            position: "absolute",
-            top: "10px",
-            left: "10px",
-            zIndex: 1000
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-            <img 
-              src={asset('assets/map-cities.png')}
-              alt="Cities" 
-              onClick={handleCityDropdownToggle}
-              style={{
-                maxWidth: "50px",
-                height: "auto",
-                borderRadius: "5px",
-                cursor: "pointer",
-                transition: "transform 0.2s ease, box-shadow 0.2s ease"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-            />
-            
-            {/* Tour Icon */}
-            <img 
-              src={asset('assets/map-tour.png')}
-              alt="Tour" 
-              onClick={handleTourToggle}
-              style={{
-                maxWidth: "50px",
-                height: "auto",
-                borderRadius: "5px",
-                cursor: "pointer",
-                transition: "transform 0.2s ease, box-shadow 0.2s ease"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-            />
-
-            {/* Music Icon */}
-            <img 
-              src={asset('assets/map-music.png')}
-              alt="Music" 
-              onClick={handleMusicToggle}
-              style={{
-                maxWidth: "45px",
-                height: "auto",
-                borderRadius: "5px",
-                cursor: "pointer",
-                transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                marginLeft: "4px"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-            />
-            
-          </div>
-        
-          {/* Dropdown Menu */}
-          {showCityDropdown && (
-            <div style={{
-              position: "absolute",
-              top: "10px",
-              left: "65px", // Fixed position since this is desktop only
-              background: "rgba(0, 0, 0, 0.8)",
-              borderRadius: "8px",
-              boxShadow: "none",
-              padding: "5px 0",
-              minWidth: "150px",
-              borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-              borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-              borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRight: "1px solid rgba(255, 255, 255, 0.1)",
-              overflow: "hidden",
-              animation: "fadeInRight 0.3s ease-out",
-              zIndex: 1001 // Ensure it's above other elements
-            }}>
-              <div style={{
-                fontSize: "0.9rem",
-                fontWeight: "bold",
-                color: "#e0e0e0",
-                fontFamily: "'Courier New', Courier, monospace",
-                textTransform: "uppercase",
-                padding: "4px 12px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                marginBottom: "0px"
-              }}>
-                Cities:
-              </div>
-              {dropdownCities.map((city) => (
-                <div
-                  key={city.id}
-                  onClick={() => handleCitySelect(city)}
-                  style={{
-                    padding: "2px 12px",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                    color: "#e0e0e0",
-                    fontFamily: "'Courier New', Courier, monospace",
-                    textTransform: "uppercase",
-                    fontWeight: "bold",
-                    transition: "background-color 0.2s ease",
-                    borderRadius: "0",
-                    margin: "0"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
-                    e.currentTarget.style.color = "#ffffff";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "#e0e0e0";
-                  }}
-                >
-                  {city.name}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Music Dropdown Menu */}
-          {showMusicDropdown && (
-            <div style={{
-              position: "absolute",
-              top: "119px", // Position below the music icon
-              left: "65px",
-              background: "rgba(0, 0, 0, 0.8)",
-              borderRadius: "8px",
-              boxShadow: "none",
-              padding: "5px 0",
-              minWidth: "150px",
-              borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-              borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-              borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRight: "1px solid rgba(255, 255, 255, 0.1)",
-              overflow: "hidden",
-              animation: "fadeInRight 0.3s ease-out",
-              zIndex: 1001
-            }}>
-              <div style={{
-                fontSize: "0.9rem",
-                fontWeight: "bold",
-                color: "#e0e0e0",
-                fontFamily: "'Courier New', Courier, monospace",
-                textTransform: "uppercase",
-                padding: "4px 12px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                marginBottom: "0px"
-              }}>
-                My Playlists:
-              </div>
-              {musicCities.map((city) => (
-                <div
-                  key={city.id}
-                  onClick={() => handleMusicCitySelect(city)}
-                  style={{
-                    padding: "2px 12px",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                    color: "#e0e0e0",
-                    fontFamily: "'Courier New', Courier, monospace",
-                    textTransform: "uppercase",
-                    fontWeight: "bold",
-                    transition: "background-color 0.2s ease",
-                    borderRadius: "0",
-                    margin: "0"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(165, 214, 250, 0.2)";
-                    e.currentTarget.style.color = "#ffffff";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "#e0e0e0";
-                  }}
-                >
-                  {city.name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Camera Icon - positioned above NavigationControl - Hidden on mobile */}
-      {!isMobile && (
-        <div style={{
-          position: "absolute",
-          top: "180px",
-          left: "10px",
-          zIndex: 1000
-        }}>
-          <img 
-            src={asset('assets/map-3d.png')}
-            alt="3D" 
-            onClick={handleCameraToggle}
-            style={{
-              maxWidth: "50px",
-              height: "auto",
-              borderRadius: "4px",
-              cursor: "pointer",
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
-              
-              padding: "5px",
-              
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.05)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1)";
-            }}
-          />
-        </div>
-      )}
-
-      {/* Pitch Control - Hidden on mobile */}
-      {showPitchControl && !isMobile && (
-        <div style={{
-          position: "absolute",
-          top: "180px",
-          left: "65px",
-          background: "rgba(0, 0, 0, 0.8)",
-          borderRadius: "8px",
-          boxShadow: "none",
-          padding: "8px 12px",
-          minWidth: "140px",
-          height: "40px",
-          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-          borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
-          borderRight: "1px solid rgba(255, 255, 255, 0.1)",
-          overflow: "hidden",
-          animation: "fadeInRight 0.3s ease-out"
-        }}>
-          <div style={{ 
-            display: "flex", 
-            flexDirection: "row", 
-            alignItems: "center", 
-            height: "100%",
-            justifyContent: "space-between",
-            gap: "8px"
-          }}>
-            <span style={{
-              fontSize: "0.6rem",
-              color: "#e0e0e0",
-              fontFamily: "'Courier New', Courier, monospace",
-              textTransform: "uppercase",
-              fontWeight: "bold",
-              minWidth: "20px"
-            }}>2D</span>
-            <input
-              type="range"
-              min="0"
-              max="85"
-              value={pitch}
-              onChange={(e) => handlePitchChange(Number(e.target.value))}
-              className="custom-pitch-slider"
-              style={{
-                width: "80px",
-                height: "3px",
-                borderRadius: "2px",
-                background: "#444",
-                outline: "none",
-                cursor: "pointer",
-                WebkitAppearance: "none",
-                appearance: "none",
-                position: "relative",
-                flex: "1"
-              }}
-            />
-            <span style={{
-              fontSize: "0.6rem",
-              color: "#e0e0e0",
-              fontFamily: "'Courier New', Courier, monospace",
-              textTransform: "uppercase",
-              fontWeight: "bold",
-              minWidth: "20px"
-            }}>3D</span>
-            <div style={{
-              fontSize: "0.5rem",
-              color: "#ffffff",
-              fontFamily: "sans-serif",
-              fontWeight: "500",
-              minWidth: "30px",
-              textAlign: "center",
-              marginLeft: "4px"
-            }}>
-              {pitch}°
-            </div>
-          </div>
-        </div>
-      )}
+      <MapNavBar
+        isMobile={isMobile}
+        dropdownRef={dropdownRef}
+        showIconMenu={showIconMenu}
+        onIconMenuToggle={handleIconMenuToggle}
+        showCityDropdown={showCityDropdown}
+        onCityDropdownToggle={handleCityDropdownToggle}
+        onTourToggle={handleTourToggle}
+        onMusicToggle={handleMusicToggle}
+        dropdownCities={dropdownCities}
+        onCitySelect={handleCitySelect}
+        showMusicDropdown={showMusicDropdown}
+        musicCities={musicCities}
+        onMusicCitySelect={handleMusicCitySelect}
+        onCameraToggle={handleCameraToggle}
+        showPitchControl={showPitchControl}
+        pitch={pitch}
+        onPitchChange={handlePitchChange}
+      />
 
       {/* Tour Controls - Hidden on mobile */}
       {showTour && !isMobile && (
         <div style={{
           position: "absolute",
-          bottom: "20px",
+          bottom: "24px",
           left: "50%",
           transform: "translateX(-50%)",
-          background: "rgba(0, 0, 0, 0.8)",
-          borderRadius: "6px",
-          padding: "8px 20px",
+          background: "rgba(30, 32, 38, 0.35)",
+          backdropFilter: "blur(20px) saturate(180%)",
+          WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          borderRadius: "28px",
+          padding: "10px 14px",
           display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-          borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
-          borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+          flexDirection: "column",
+          alignItems: "stretch",
+          gap: "0px",
+          border: "1px solid rgba(255, 255, 255, 0.25)",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25)",
           zIndex: 1000
         }}>
           <div style={{
-            color: "#e0e0e0",
-            fontSize: "0.9rem",
-            fontFamily: "'Courier New', Courier, monospace",
-            textTransform: "uppercase",
-            fontWeight: "bold",
-            marginRight: "12px",
-            whiteSpace: "nowrap"
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
           }}>
-            Guided Tour
-          </div>
-          
+
           <button
             onClick={handlePrevCity}
             style={{
-              background: "transparent",
-              border: "1px solid rgba(255, 255, 255, 0.3)",
-              color: "#e0e0e0",
-              padding: "4px 8px",
-              borderRadius: "4px",
+              background: "rgba(255, 255, 255, 0.12)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              color: "#ffffff",
+              width: "24px",
+              height: "24px",
+              padding: 0,
+              borderRadius: "50%",
               cursor: "pointer",
-              fontSize: "0.75rem",
-              fontFamily: "'Courier New', Courier, monospace",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap"
+              fontSize: "0.7rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s ease, transform 0.2s ease"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.24)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
             }}
           >
-            ← Prev
+            ←
           </button>
-          
+
           <div style={{
-            color: "#e0e0e0",
-            fontSize: "0.8rem",
-            fontFamily: "'Courier New', Courier, monospace",
-            textTransform: "uppercase",
-            minWidth: "120px",
-            textAlign: "center",
-            whiteSpace: "nowrap"
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            minWidth: 0
           }}>
-            {currentTourIndex + 1} / {tourCities.length}: {tourCities[currentTourIndex]?.name}
+            <div style={{
+              color: "#ffffff",
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              whiteSpace: "nowrap"
+            }}>
+              Guided Tour
+            </div>
+            <div style={{
+              color: "rgba(255, 255, 255, 0.85)",
+              fontSize: "0.7rem",
+              fontWeight: 400,
+              whiteSpace: "nowrap"
+            }}>
+              Part {currentTourIndex + 1}: {tourCities[currentTourIndex]?.name}
+            </div>
           </div>
-          
+
           <button
             onClick={handleNextCity}
             style={{
-              background: "transparent",
-              border: "1px solid rgba(255, 255, 255, 0.3)",
-              color: "#e0e0e0",
-              padding: "4px 8px",
-              borderRadius: "4px",
+              background: "rgba(255, 255, 255, 0.12)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              color: "#ffffff",
+              width: "24px",
+              height: "24px",
+              padding: 0,
+              borderRadius: "50%",
               cursor: "pointer",
-              fontSize: "0.75rem",
-              fontFamily: "'Courier New', Courier, monospace",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap"
+              fontSize: "0.7rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s ease, transform 0.2s ease"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.24)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
             }}
           >
-            Next →
+            →
           </button>
-          
+
           <button
             onClick={() => setShowTour(false)}
             style={{
-              background: "transparent",
-              border: "1px solid rgba(255, 255, 255, 0.3)",
-              color: "#e0e0e0",
-              padding: "4px 8px",
-              borderRadius: "4px",
+              background: "rgba(255, 255, 255, 0.08)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              color: "rgba(255, 255, 255, 0.85)",
+              width: "24px",
+              height: "24px",
+              padding: 0,
+              borderRadius: "50%",
               cursor: "pointer",
-              fontSize: "0.75rem",
-              fontFamily: "'Courier New', Courier, monospace",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap"
+              fontSize: "0.65rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s ease"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
             }}
           >
-            ✕ Close
+            ✕
           </button>
+          </div>
+
+          <div style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "6px",
+            marginTop: "6px"
+          }}>
+            {tourCities.map((city, index) => (
+              <div
+                key={city.id}
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: index === currentTourIndex ? "#ffffff" : "rgba(255, 255, 255, 0.35)",
+                  transition: "background 0.2s ease"
+                }}
+              />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Custom Popup Area - Below map, above sidebar - Desktop only */}
+      {/* Custom Popup Area - Top-left of map viewport - Desktop only */}
       {customPopupData && !isMobile && (
         <div style={{
           position: "absolute",
-          bottom: isMobile ? "60px" : "0px", // Above footer on mobile, at bottom on desktop
-          left: isMobile ? "3vw" : "20px",
-          right: isMobile ? "3vw" : "420px", // Leave space for sidebar on desktop
-          background: "rgba(35, 35, 35, 0.95)",
-          borderRadius: "12px",
+          top: "20px",
+          left: "20px",
+          width: "240px",
+          maxWidth: "calc(100% - 40px)",
+          background: "rgba(18, 19, 24, 0.72)",
+          backdropFilter: "blur(20px) saturate(180%)",
+          WebkitBackdropFilter: "blur(20px) saturate(180%)",
+          borderRadius: "16px",
           padding: "16px",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)",
           color: "#f8f6f0",
           zIndex: 1000,
-          maxHeight: "300px",
+          maxHeight: "min(60vh, 420px)",
           overflow: "auto",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          backdropFilter: "blur(10px)"
+          border: "1px solid rgba(255, 255, 255, 0.25)"
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-            <h3 style={{ 
-              margin: 0, 
-              color: "#007bff", 
-              fontSize: "1.2rem", 
-              fontWeight: "bold" 
+          <div style={{ position: "relative", marginBottom: "12px" }}>
+            <h3 style={{
+              margin: 0,
+              color: "#007bff",
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              textAlign: "center",
+              padding: "0 28px"
             }}>
               {customPopupData.cityName}
             </h3>
             <button
               onClick={closeCustomPopup}
               style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
                 background: "transparent",
                 border: "none",
                 color: "#f8f6f0",
@@ -1396,20 +1027,22 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
               ×
             </button>
           </div>
-          
+
           {(() => {
             const cityData = (placeData as any[]).find(
               (entry) => entry.city.trim().toLowerCase() === customPopupData.cityName.trim().toLowerCase()
             );
-            
+
             if (!cityData) return null;
-            
+
+            const playlistId = cityData.playlist?.match(/playlist\/([a-zA-Z0-9]+)/)?.[1];
+
             return (
               <div style={{ textAlign: "center" }}>
                 {cityData.image && (
-                  <img 
+                  <img
                     src={asset(cityData.image)}
-                    alt={customPopupData.cityName} 
+                    alt={customPopupData.cityName}
                     style={{
                       display: "block",
                       margin: "0 auto 12px auto",
@@ -1420,67 +1053,94 @@ export default function MapboxGlobe({ selectedCity, onCitySelect }: MapboxGlobeP
                       borderRadius: "8px",
                       objectFit: "cover"
                     }}
-                    onError={(e) => {
-                      console.error("Failed to load image:", e.currentTarget.src);
-                    }}
-                    onLoad={(e) => {
-                      console.log("Image loaded successfully:", e.currentTarget.src);
-                    }}
                     loading="lazy"
                   />
                 )}
-                
+
                 {cityData.date && (
                   <div style={{
                     fontSize: "0.8rem",
-                    color: "#bdbdbd",
+                    color: "#d8d8d8",
                     marginBottom: "8px",
                     fontStyle: "italic"
                   }}>
                     {cityData.date}
                   </div>
                 )}
-                
+
                 {cityData.place_description && (
-                  <div style={{
-                    fontSize: "0.9rem",
-                    color: "#e0e0e0",
-                    lineHeight: "1.4",
-                    marginBottom: "12px",
-                    textAlign: "left"
-                  }}>
-                    {cityData.place_description}
-                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#f5f5f5",
+                      lineHeight: "1.4",
+                      marginBottom: "12px",
+                      textAlign: "left"
+                    }}
+                    dangerouslySetInnerHTML={{ __html: cityData.place_description }}
+                  />
                 )}
-                
+
                 {cityData.playlist && (
                   <div style={{ textAlign: "center" }}>
-                    <a 
-                      href={cityData.playlist} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{
-                        color: "#a5d6fa",
-                        fontWeight: "bold",
-                        fontSize: "0.8rem",
-                        textDecoration: "none",
-                        padding: "6px 12px",
-                        border: "1px solid #a5d6fa",
-                        borderRadius: "6px",
-                        display: "inline-block",
-                        transition: "all 0.2s"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#a5d6fa";
-                        e.currentTarget.style.color = "#000";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                        e.currentTarget.style.color = "#a5d6fa";
-                      }}
-                    >
-                      My Playlist
-                    </a>
+                    {playlistId ? (
+                      showPlaylistEmbed ? (
+                        <div ref={spotifyEmbedContainerRef} />
+                      ) : (
+                        <button
+                          onClick={() => setShowPlaylistEmbed(true)}
+                          style={{
+                            color: "#a5d6fa",
+                            fontWeight: "bold",
+                            fontSize: "0.8rem",
+                            background: "none",
+                            padding: "6px 12px",
+                            border: "1px solid #a5d6fa",
+                            borderRadius: "6px",
+                            display: "inline-block",
+                            cursor: "pointer",
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#a5d6fa";
+                            e.currentTarget.style.color = "#000";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "transparent";
+                            e.currentTarget.style.color = "#a5d6fa";
+                          }}
+                        >
+                          My {customPopupData.cityName} Playlist
+                        </button>
+                      )
+                    ) : (
+                      <a
+                        href={cityData.playlist}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          color: "#a5d6fa",
+                          fontWeight: "bold",
+                          fontSize: "0.8rem",
+                          textDecoration: "none",
+                          padding: "6px 12px",
+                          border: "1px solid #a5d6fa",
+                          borderRadius: "6px",
+                          display: "inline-block",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#a5d6fa";
+                          e.currentTarget.style.color = "#000";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                          e.currentTarget.style.color = "#a5d6fa";
+                        }}
+                      >
+                        Open Playlist ↗
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

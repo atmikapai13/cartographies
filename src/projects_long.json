@@ -8,7 +8,7 @@
     "github": null,
     "image": "/assets/4.png",
     "spotlight": true,
-    "tech_stack": ["ML", "GIS", "Research"],
+    "tech_stack": ["ML", "Maps", "Research"],
     "work_experience": ["Projects"],
     "tech_stack2": "Python (Scikit-learn)"
   },
@@ -21,7 +21,7 @@
     "github": "https://medium.com/bay-area-transit-tales-from-an-urban-analyst/sql-database-for-bart-ridership-and-scheduling-data-8fadb40efc51",
     "image": "/assets/5.png",
     "spotlight": true,
-    "tech_stack": ["GIS"],
+    "tech_stack": ["Maps"],
     "work_experience": ["Projects"],
     "tech_stack2": "SQL, Python (Pandas)"
   },
@@ -34,7 +34,7 @@
     "github": "https://github.com/aap253/iconic-runclubs-nyc",
     "image": "/assets/2.png",
     "spotlight": false,
-    "tech_stack": ["GIS", "Web Dev", "Design"],
+    "tech_stack": ["Maps", "Web Dev", "Design"],
     "work_experience": ["Projects"],
     "tech_stack2": "Python (Web Scrapping w/ BeautifulSoup), HTML, CSS"
   },
@@ -47,7 +47,7 @@
     "github": null,
     "image": "/assets/3.png",
     "spotlight": false,
-    "tech_stack": ["GIS", "Design"],
+    "tech_stack": ["Maps", "Design"],
     "work_experience": ["Projects"],
     "tech_stack2": "ArcGIS Pro (Network Analyst Toolkit), ArcGIS StoryMaps"
   },
@@ -99,7 +99,7 @@
     "image": "/assets/14.png",
     "github": null,
     "spotlight": false,
-    "tech_stack": ["GIS", "Research"],
+    "tech_stack": ["Maps", "Research"],
     "work_experience": ["Work"],
     "role": "Researcher",
     "date": "2024—"
@@ -127,7 +127,7 @@
     "github": null,
     "image": "/assets/20.png",
     "spotlight": false,
-    "tech_stack": ["GIS", "Research"],
+    "tech_stack": ["Maps", "Research"],
     "work_experience": ["Projects"],
     "role": "Researcher",
     "date": "2024—",
@@ -168,7 +168,7 @@
     "github": null,
     "image": "/assets/22.png",
     "spotlight": false,
-    "tech_stack": ["Design", "GIS"],
+    "tech_stack": ["Design", "Maps"],
     "work_experience": ["Projects"],
     "tech_stack2": "Figma"
   },
@@ -221,7 +221,7 @@
     "github": null,
     "image": "/assets/16.png",
     "spotlight": true,
-    "tech_stack": ["Product Management", "Insurance", "GIS"],
+    "tech_stack": ["Product Management", "Insurance", "Maps"],
     "work_experience": ["Work"],
     "role": "Product Analyst",
     "date": "2022—2024",
@@ -266,7 +266,7 @@
     "work_experience": ["Work"],
     "role": "Student Liason",
     "date": "Summer 2025",
-    "tech_stack": ["GIS"]
+    "tech_stack": ["Maps"]
   },
   {
     "id": 18,
@@ -277,7 +277,7 @@
     "github": null,
     "image": "/assets/16.png",
     "spotlight": true,
-    "tech_stack": ["Product Management", "Insurance", "GIS"],
+    "tech_stack": ["Product Management", "Insurance", "Maps"],
     "work_experience": ["Work"],
     "role": "Summer Intern",
     "date": "Summer 2020",
@@ -295,7 +295,7 @@
     "role": "Student Liason",
     "date": "Spring 2025",
     "spotlight": false,
-    "tech_stack": ["GIS"]
+    "tech_stack": ["Maps"]
   },
   {
     "id": 24,

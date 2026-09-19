@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import projects from '../projects.json';
-import ProjectCard from './ProjectCard';
+import ProjectCard, { type ProjectStint } from './ProjectCard';
 
 interface SidebarProps {
   selectedCity?: string | null;
   setSelectedCity?: (city: string | null) => void;
 }
+
+// Extract the most recent 4-digit year mentioned in a date string (e.g. "2022—2024" -> 2024),
+// used to sort a company's stints most-recent-first. Falls back to 0 if no year is found.
+const extractLatestYear = (date?: string): number => {
+  if (!date) return 0;
+  const years = date.match(/\d{4}/g);
+  if (!years) return 0;
+  return Math.max(...years.map(Number));
+};
 
 const experienceCategories = [
   { label: 'Work', value: 'Work' },
@@ -99,6 +108,53 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedCity, setSelectedCity }) => {
   // Combine spotlight and other projects for unified show more logic
   const allSidebarProjects = [...spotlightProjects, ...otherProjects];
 
+  // Group entries that share the same title (e.g. multiple stints at the same company)
+  // into a single card, each stint rendered as its own row.
+  interface GroupedCard {
+    key: string;
+    title: string;
+    logo?: string;
+    spotlight: boolean;
+    stints: ProjectStint[];
+  }
+  const groupedCards: GroupedCard[] = [];
+  const groupIndexByTitle = new Map<string, number>();
+
+  allSidebarProjects.forEach((project) => {
+    const isWorkEntry = Array.isArray(project.work_experience)
+      ? project.work_experience.includes('Work')
+      : project.work_experience === 'Work';
+    const title = project.title ?? '';
+    const stint: ProjectStint = {
+      id: project.id,
+      role: isWorkEntry ? project.role : undefined,
+      date: isWorkEntry ? project.date : undefined,
+      city: project.city,
+      description: project.description || undefined,
+      link: project.link || undefined,
+    };
+
+    const existingIndex = groupIndexByTitle.get(title);
+    if (existingIndex !== undefined) {
+      groupedCards[existingIndex].stints.push(stint);
+      if (project.spotlight) groupedCards[existingIndex].spotlight = true;
+    } else {
+      groupIndexByTitle.set(title, groupedCards.length);
+      groupedCards.push({
+        key: title || String(project.id),
+        title,
+        logo: isWorkEntry ? project.image ?? undefined : undefined,
+        spotlight: !!project.spotlight,
+        stints: [stint],
+      });
+    }
+  });
+
+  // Show each company's most recent stint first
+  groupedCards.forEach((card) => {
+    card.stints.sort((a, b) => extractLatestYear(b.date) - extractLatestYear(a.date));
+  });
+
   // Legend text for the blue badge
   let badgeLegend = '';
   if (selectedCategory.toLowerCase() === 'work') badgeLegend = 'Full-time';
@@ -107,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedCity, setSelectedCity }) => {
 
   return (
     <aside className="sidebar" style={{ paddingTop: 0 }}>
-      <h3 className="sidebar-title" style={{  fontFamily: 'Arial', marginBottom: '0px', marginTop: 0 }}>Cartographies of My Work</h3> 
+      <h3 className="sidebar-title" style={{  fontFamily: 'Arial', marginBottom: '0px', marginTop: 0 }}>Cartographies of my work</h3> 
       <p className="sidebar-subtitle" style={{ marginBottom: 6, marginTop: 0, maxWidth: 400, fontStyle: 'italic'}}>
         Explore by clicking on a city or filtering below:
       </p>
@@ -252,27 +308,22 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedCity, setSelectedCity }) => {
       {/* Project list scrollable area */}
       <div className="sidebar-scroll">
         <div className="sidebar-project-list">
-          {allSidebarProjects.length === 0 && selectedCity && (
+          {groupedCards.length === 0 && selectedCity && (
             <div style={{ color: '#bbb', fontStyle: 'italic', marginTop: 12, marginBottom: 12 , fontSize: '0.5rem'}}>
               Nothing to see here!
             </div>
           )}
-          {(showAllProjects ? allSidebarProjects : allSidebarProjects.slice(0, 5)).map((project) => (
-            <div key={project.id} className="sidebar-project-card-wrapper">
+          {(showAllProjects ? groupedCards : groupedCards.slice(0, 5)).map((card) => (
+            <div key={card.key} className="sidebar-project-card-wrapper">
               <ProjectCard
-                title={project.title ?? ''}
-                image={project.image ?? ''}
-                description={project.description || undefined}
-                link={project.link || undefined}
-                spotlight={project.spotlight}
-                role={Array.isArray(project.work_experience) ? (project.work_experience.includes('Work') ? project.role : undefined) : (project.work_experience === 'Work' ? project.role : undefined)}
-                date={Array.isArray(project.work_experience) ? (project.work_experience.includes('Work') ? project.date : undefined) : (project.work_experience === 'Work' ? project.date : undefined)}
-                tech_stack2={project.tech_stack2}
-                city={project.city}
+                title={card.title}
+                logo={card.logo}
+                spotlight={card.spotlight}
+                stints={card.stints}
               />
             </div>
           ))}
-          {allSidebarProjects.length > 5 && !showAllProjects && (
+          {groupedCards.length > 5 && !showAllProjects && (
             <button
               className="show-all-btn"
               style={{ margin: '16px auto 0 auto', display: 'block', fontSize: '0.92rem', padding: '4px 16px', borderRadius: 12, border: 'none', background: '#00a9fe', color: '#fff', cursor: 'pointer' }}
